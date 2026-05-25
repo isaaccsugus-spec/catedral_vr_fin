@@ -16,7 +16,6 @@
     "dist:max": "webpack --config webpack.config.js",
     "dist:min": "webpack --config webpack.prod.config.js",
     "lint": "eslint src examples server tests *.js",
-    "prepare": "husky && npm run dist && shx cp -r dist examples",
     "start": "node ./server/easyrtc-server.js",
     "start-socketio": "node ./server/socketio-server.js",
     "test": "karma start ./tests/unit/karma.conf.js",
@@ -86,8 +85,8 @@
     "webvr"
   ],
   "engines": {
-    "node": ">= 8.10.0",
-    "npm": ">= 4.0.5"
+    "node": ">= 18.0.0",
+    "npm": ">= 9.0.0"
   },
   "babel": {
     "presets": [
