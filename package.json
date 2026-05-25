@@ -10,6 +10,7 @@
     "url": "https://github.com/networked-aframe/networked-aframe/issues"
   },
   "scripts": {
+    "build": "npm run dist",
     "dev": "cross-env NODE_ENV=development node ./server/easyrtc-server.js",
     "dev-socketio": "cross-env NODE_ENV=development node ./server/socketio-server.js",
     "dist": "npm run dist:min && npm run dist:max",
