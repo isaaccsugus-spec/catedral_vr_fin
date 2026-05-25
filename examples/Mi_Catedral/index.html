@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Catedral Inmersiva - Experiencia VR</title>
+    
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/easyrtc/easyrtc.js"></script>
+    <script src="/dist/networked-aframe.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #22c55e;
+            --primary-dark: #16a34a;
+            --secondary: #0f766e;
+            --accent: #fbbf24;
+            --danger: #ef4444;
+            --bg-dark: #0f172a;
+            --bg-darker: #020617;
+            --surface: #1e293b;
+            --text-primary: #f1f5f9;
+            --text-secondary: #cbd5e1;
+        }
+
+        html, body {
+            margin: 0;
+            overflow: hidden;
+            width: 100%;
+            height: 100%;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg-darker);
+            color: var(--text-primary);
+        }
+
+        /* Panel de Configuración Inicial */
+        #setup-panel {
+            position: absolute;
+            z-index: 9999;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, var(--bg-darker) 0%, #1a1f3a 50%, var(--bg-dark) 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        #setup-panel h1 {
+            font-size: clamp(1.8rem, 8vw, 3.5rem);
+            font-weight: 700;
+            margin-bottom: 30px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-align: center;
+            letter-spacing: -0.5px;
+        }
+
+        .setup-content {
+            background: linear-gradient(135deg, var(--surface) 0%, rgba(51, 65, 85, 0.8) 100%);
+            border: 1px solid rgba(34, 197, 94, 0.2);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.4);
+            animation: slideUp 0.6s ease-out 0.2s both;
+        }
+
+        #setup-panel label {
+            display: block;
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 25px 0 12px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        #setup-panel label:first-of-type {
+            margin-top: 0;
+        }
+
+        #setup-panel select {
+            width: 100%;
+            padding: 14px;
+            margin-bottom: 20px;
+            border: 2px solid rgba(34, 197, 94, 0.3);
+            border-radius: 10px;
+            background: rgba(15, 23, 42, 0.8);
+            color: var(--text-primary);
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            appearance: none;
+            padding-right: 40px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2322c55e' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+        }
+
+        #setup-panel select:hover,
+        #setup-panel select:focus {
+            border-color: var(--primary);
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.1);
+            transform: translateY(-2px);
+        }
+
+        #setup-panel select option {
+            background: var(--surface);
+            color: var(--text-primary);
+            padding: 10px;
+        }
+
+        #setup-panel button {
+            width: 100%;
+            padding: 16px;
+            margin-top: 10px;
+            font-size: 1rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: #000;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 10px 30px rgba(34, 197, 94, 0.3);
+        }
+
+        #setup-panel button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 15px 40px rgba(34, 197, 94, 0.4);
+        }
+
+        #setup-panel button:active {
+            transform: translateY(-1px);
+        }
+
+        /* Panel de Espera */
+        #overlay {
+            display: none;
+            position: absolute;
+            z-index: 9998;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(2, 6, 23, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(5px);
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        .overlay-content {
+            text-align: center;
+            animation: slideUp 0.6s ease-out 0.2s both;
+        }
+
+        .loader {
+            border: 4px solid rgba(34, 197, 94, 0.2);
+            border-top: 4px solid var(--primary);
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1.2s linear infinite;
+            margin: 0 auto 30px;
+            box-shadow: 0 0 20px rgba(34, 197, 94, 0.3);
+        }
+
+        .overlay-content h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: var(--text-primary);
+        }
+
+        #mostrar-nombre {
+            color: var(--primary);
+            font-size: 1.3rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        /* Animaciones */
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        a-scene {
+            width: 100%;
+            height: 100%;
+        }
+
+        @media (max-width: 600px) {
+            .setup-content { padding: 25px; }
+            #setup-panel h1 { margin-bottom: 25px; }
+            .loader { width: 50px; height: 50px; }
+        }
+    </style>
+
+    <script>
+        // 1. COMPONENTE: Player Info (Avatares)
+        AFRAME.registerComponent('player-info', {
+            schema: { 
+                name: { type: 'string', default: 'Cargando...' },
+                modelRef: { type: 'string', default: '#modelo-gargola' } 
+            },
+            update: function() {
+                const nametag = this.el.querySelector('.nametag');
+                if (nametag) {
+                    nametag.setAttribute('text', 'value', this.data.name);
+                }
+
+                const modelo3D = this.el.querySelector('.modelo-3d');
+                if (modelo3D && this.data.modelRef) {
+                    modelo3D.setAttribute('gltf-model', this.data.modelRef);
+                    modelo3D.setAttribute('rotation', '0 180 0');
+
+                    if (this.data.modelRef === '#modelo-monja') {
+                        modelo3D.setAttribute('scale', '2 2 2'); 
+                        modelo3D.setAttribute('position', '0 -2 0');
+                    } else {
+                        modelo3D.setAttribute('scale', '2 2 2');
+                        modelo3D.setAttribute('position', '0 -0.5 0');
+                    }
+                }
+            }
+        });
+
+        // 2. COMPONENTE: Interacción por Mirada (Gárgola Dinámica con Apagón)
+        AFRAME.registerComponent('mirada-gargola', {
+            init: function() {
+                const el = this.el;
+                let activado = false;
+                
+                el.addEventListener('click', function() {
+                    if (activado) return;
+                    activado = true;
+                    
+                    console.log("🗣️ Gárgola activada por mirada - APAGANDO LUCES");
+
+                    // 1. APAGÓN: Bajar luces de la catedral
+                    const luzAmbiental = document.querySelector('#luz-ambiental');
+                    const luzDireccional = document.querySelector('#luz-direccional');
+                    
+                    if (luzAmbiental) luzAmbiental.setAttribute('light', 'intensity', 0.00001);
+                    if (luzDireccional) luzDireccional.setAttribute('light', 'intensity', 0);
+
+                    // =========================================================================
+                    // 2. OJOS ROJOS (Usando tus coordenadas: 0.195, 0.579, 1.256)
+                    // =========================================================================
+                    const ojos = document.createElement('a-entity');
+                    ojos.innerHTML = `
+                        <a-sphere position="-0.195 0.579 1.256" radius="0.04" color="#ff0000" material="emissive: #ff0000; emissiveIntensity: 10; shader: flat"></a-sphere>
+                        <a-sphere position="0.195 0.579 1.256" radius="0.04" color="#ff0000" material="emissive: #ff0000; emissiveIntensity: 10; shader: flat"></a-sphere>
+                    `;
+                    el.appendChild(ojos);
+
+                    // 3. Crear el cartel flotante
+                    const panel = document.createElement('a-entity');
+                    panel.setAttribute('position', '-1.5 1.5 0');
+                    panel.setAttribute('animation', 'property: position; to: -1.5 1.6 0; dir: alternate; loop: true; dur: 2000');
+                    panel.innerHTML = `
+                        <a-entity geometry="primitive: plane; width: 2.2; height: 0.8" material="color: #111; opacity: 0.8; transparent: true"></a-entity>
+                        <a-text value="EL GUARDIAN DE PIEDRA\\n\\nQuien devuelve la mirada\\ndespierta al centinela." color="#ffcc00" align="center" position="0 0 0.05" width="2.5"></a-text>
+                    `;
+                    el.appendChild(panel);
+
+                    // 4. Reproducir el sonido
+                    const sonido = document.querySelector('#audio-campana');
+                    if (sonido && typeof sonido.play === 'function') {
+                        sonido.currentTime = 0;
+                        sonido.play().catch(e => console.log('Audio error:', e));
+                    }
+
+                    // 5. RESTAURAR CATEDRAL (Después de 5 segundos)
+                    setTimeout(() => {
+                        if (ojos && ojos.parentNode) ojos.parentNode.removeChild(ojos);
+                        if (panel && panel.parentNode) panel.parentNode.removeChild(panel);
+                        
+                        if (luzAmbiental) luzAmbiental.setAttribute('light', 'intensity', 0.5);
+                        if (luzDireccional) luzDireccional.setAttribute('light', 'intensity', 0);
+
+                        activado = false;
+                        console.log("🔇 Gárgola desactivada y luz restaurada");
+                    }, 5000);
+                });
+            }
+        });
+    </script>
+</head>
+<body>
+
+<div id="setup-panel">
+    <h1>⛪ CATEDRAL INMERSIVA</h1>
+    <div class="setup-content">
+        <label>Selecciona qué equipo es este:</label>
+        <select id="selector-equipo">
+            <option value="PC">🖥️ PC Principal</option>
+            <option value="Gafas1">👓 Gafas VR 1</option>
+            <option value="Gafas2">👓 Gafas VR 2</option>
+        </select>
+        <button onclick="fijarEquipo()">🔌 CONECTAR AL SERVIDOR</button>
+    </div>
+</div>
+
+<div id="overlay">
+    <div class="overlay-content">
+        <div class="loader"></div>
+        <h1>⏳ ESPERANDO ORDEN...</h1>
+        <h2 id="mostrar-nombre"></h2>
+    </div>
+</div>
+
+<a-scene 
+    networked-scene="serverURL: /; app: catedral; room: principal; adapter: wseasyrtc;"
+    fog="type: exponential; color: #020202; density: 0.015"
+    background="color: #000000">
+
+    <a-assets>
+        <a-asset-item id="catedral" src="modelos/catedral.glb"></a-asset-item>
+        <a-asset-item id="modelo-monja" src="modelos/princess_nun_royal_queen.glb"></a-asset-item>
+        <a-asset-item id="modelo-gargola" src="modelos/gargula.glb"></a-asset-item>
+        <a-asset-item id="gargola-secreta" src="modelos/gargola_secreta.glb"></a-asset-item>
+
+        <audio id="audio-entrada" src="audio/campana2.mp3" preload="auto"></audio>
+        <audio id="audio-Air" src="audio/Bach - Air.mp3"></audio>
+        <audio id="audio-campana" src="audio/campana2.mp3" preload="auto"></audio>
+        
+        <template id="avatar-template">
+            <a-entity class="avatar" player-info="name: Cargando...; modelRef: #modelo-gargola">
+                <a-entity class="modelo-3d" gltf-model="#modelo-gargola" position="0 -0.5 0"></a-entity>
+                <a-entity class="nametag" text="value: Cargando...; align: center; color: #FFFF00; side: double" rotation="0 180 0" position="0 1.5 0" scale="2.5 2.5 2.5"></a-entity>
+            </a-entity>
+        </template>
+    </a-assets>
+
+    <a-light id="luz-ambiental" type="ambient" color="#ffffff" intensity="0.5"></a-light>
+    <a-light id="luz-direccional" type="directional" position="1 1 1" color="#ffffff" intensity="0"></a-light>
+    <a-entity id="grupo-gargola" position="3.0 3.709 -4.5" rotation="-8.629 -90.0 -5.891" scale="2 2 2">
+        <a-entity gltf-model="#gargola-secreta"></a-entity>
+        
+        <a-entity class="interactable" 
+                  mirada-gargola 
+                  geometry="primitive: box; width: 3.5; height: 4.5; depth: 3.5" 
+                  material="color: #ff0000; opacity: 0.01; transparent: true; depthWrite: false" 
+                  position="0 1.5 0.5">
+        </a-entity>
+    </a-entity>
+    <a-entity id="grupo-gargola" position="-3.5 3.709 -4.5" rotation="-8.629 90 -5.891" scale="2 2 2">
+        <a-entity gltf-model="#gargola-secreta"></a-entity>
+        
+        <a-entity class="interactable" 
+                  mirada-gargola 
+                  geometry="primitive: box; width: 3.5; height: 4.5; depth: 3.5" 
+                  material="color: #ff0000; opacity: 0.01; transparent: true; depthWrite: false" 
+                  position="0 1.5 0.5">
+        </a-entity>
+    </a-entity>
+
+    <a-entity id="zona-altar" position="0 0 -42.5">
+        <a-torus rotation="90 0 0" radius="5" radius-tubular="0.02" color="#22c55e" material="opacity: 0.1"></a-torus>
+    </a-entity>
+
+    <a-entity position="-2 0 -42.5">
+        <a-cylinder color="#FFD700" radius="0.05" height="1.5" position="0 0.75 0" metalness="0.8" roughness="0.2"></a-cylinder>
+        <a-cone color="#FFD700" radius-bottom="0.4" radius-top="0.05" height="0.3" position="0 0.15 0" metalness="0.8"></a-cone>
+        <a-box color="#FFD700" width="1.2" height="0.05" depth="0.05" position="0 1.5 0" metalness="0.8"></a-box>
+        <a-entity position="0.5 1.65 0">
+            <a-cylinder color="#FFF" radius="0.04" height="0.3"></a-cylinder>
+            <a-entity class="llama" position="0 0.2 0" geometry="primitive: sphere; radius: 0.06" material="color: #ffaa00; emissive: #ffaa00; emissiveIntensity: 1.5; shader: flat" visible="false"></a-entity>
+            <a-entity class="luz-vela" light="type: point; intensity: 0; color: #ffaa00; distance: 10" position="0 0.5 0"></a-entity>
+        </a-entity>
+        <a-entity position="-0.5 1.55 0">
+            <a-cylinder color="#FFF" radius="0.04" height="0.2"></a-cylinder>
+            <a-entity class="llama" position="0 0.15 0" geometry="primitive: sphere; radius: 0.06" material="color: #ffaa00; emissive: #ffaa00; emissiveIntensity: 1.5; shader: flat" visible="false"></a-entity>
+            <a-entity class="luz-vela" light="type: point; intensity: 0; color: #ffaa00; distance: 10" position="0 0.5 0"></a-entity>
+        </a-entity>
+    </a-entity>
+
+    <a-entity position="0 0 -42.5">
+        <a-cylinder color="#FFD700" radius="0.05" height="1.5" position="0 0.75 0" metalness="0.8" roughness="0.2"></a-cylinder>
+        <a-cone color="#FFD700" radius-bottom="0.4" radius-top="0.05" height="0.3" position="0 0.15 0" metalness="0.8"></a-cone>
+        <a-box color="#FFD700" width="1.2" height="0.05" depth="0.05" position="0 1.5 0" metalness="0.8"></a-box>
+        <a-entity position="0 1.65 0">
+            <a-cylinder color="#FFF" radius="0.04" height="0.3"></a-cylinder>
+            <a-entity class="llama" position="0 0.2 0" geometry="primitive: sphere; radius: 0.06" material="color: #ffaa00; emissive: #ffaa00; emissiveIntensity: 1.5; shader: flat" visible="false"></a-entity>
+            <a-entity class="luz-vela" light="type: point; intensity: 0; color: #ffaa00; distance: 10" position="0 0.5 0"></a-entity>
+        </a-entity>
+        <a-entity position="-0.5 1.55 0">
+            <a-cylinder color="#FFF" radius="0.04" height="0.2"></a-cylinder>
+            <a-entity class="llama" position="0 0.15 0" geometry="primitive: sphere; radius: 0.06" material="color: #ffaa00; emissive: #ffaa00; emissiveIntensity: 1.5; shader: flat" visible="false"></a-entity>
+            <a-entity class="luz-vela" light="type: point; intensity: 0; color: #ffaa00; distance: 10" position="0 0.5 0"></a-entity>
+        </a-entity>
+        <a-entity position="0.5 1.55 0">
+            <a-cylinder color="#FFF" radius="0.04" height="0.2"></a-cylinder>
+            <a-entity class="llama" position="0 0.15 0" geometry="primitive: sphere; radius: 0.06" material="color: #ffaa00; emissive: #ffaa00; emissiveIntensity: 1.5; shader: flat" visible="false"></a-entity>
+            <a-entity class="luz-vela" light="type: point; intensity: 0; color: #ffaa00; distance: 10" position="0 0.5 0"></a-entity>
+        </a-entity>
+    </a-entity>
+
+    <a-entity position="2 0 -42.5">
+        <a-cylinder color="#FFD700" radius="0.05" height="1.5" position="0 0.75 0" metalness="0.8" roughness="0.2"></a-cylinder>
+        <a-cone color="#FFD700" radius-bottom="0.4" radius-top="0.05" height="0.3" position="0 0.15 0" metalness="0.8"></a-cone>
+        <a-box color="#FFD700" width="1.2" height="0.05" depth="0.05" position="0 1.5 0" metalness="0.8"></a-box>
+        <a-entity position="0 1.65 0">
+            <a-cylinder color="#FFF" radius="0.04" height="0.3"></a-cylinder>
+            <a-entity class="llama" position="0 0.2 0" geometry="primitive: sphere; radius: 0.06" material="color: #ffaa00; emissive: #ffaa00; emissiveIntensity: 1.5; shader: flat" visible="false"></a-entity>
+            <a-entity class="luz-vela" light="type: point; intensity: 0; color: #ffaa00; distance: 10" position="0 0.5 0"></a-entity>
+        </a-entity>
+        <a-entity position="-0.5 1.55 0">
+            <a-cylinder color="#FFF" radius="0.04" height="0.2"></a-cylinder>
+            <a-entity class="llama" position="0 0.15 0" geometry="primitive: sphere; radius: 0.06" material="color: #ffaa00; emissive: #ffaa00; emissiveIntensity: 1.5; shader: flat" visible="false"></a-entity>
+            <a-entity class="luz-vela" light="type: point; intensity: 0; color: #ffaa00; distance: 10" position="0 0.5 0"></a-entity>
+        </a-entity>
+        <a-entity position="0.5 1.55 0">
+            <a-cylinder color="#FFF" radius="0.04" height="0.2"></a-cylinder>
+            <a-entity class="llama" position="0 0.15 0" geometry="primitive: sphere; radius: 0.06" material="color: #ffaa00; emissive: #ffaa00; emissiveIntensity: 1.5; shader: flat" visible="false"></a-entity>
+            <a-entity class="luz-vela" light="type: point; intensity: 0; color: #ffaa00; distance: 10" position="0 0.5 0"></a-entity>
+        </a-entity>
+    </a-entity>
+
+    <a-entity 
+        id="camara" 
+        camera 
+        look-controls="enabled: false" 
+        wasd-controls="enabled: false" 
+        position="0 1.6 1" 
+        networked="template:#avatar-template;attachTemplateToLocal:false;" 
+        player-info="name: Visitante; modelRef: #modelo-monja">
+        <a-entity class="nametag" text="value: Visitante" visible="false"></a-entity>
+        <a-entity class="modelo-3d" visible="false"></a-entity>
+        
+        <a-entity 
+            id="cursor-mirada" 
+            visible="false"
+            cursor="fuse: true; fuseTimeout: 1500" 
+            raycaster="objects: .interactable; far: 100; interval: 50" 
+            position="0 0 -1" 
+            geometry="primitive: ring; radiusInner: 0.015; radiusOuter: 0.025" 
+            material="color: white; shader: flat; opacity: 1"
+            animation__fusing="property: scale; startEvents: fusing; easing: linear; dur: 1500; from: 1 1 1; to: 0.1 0.1 0.1"
+            animation__mouseleave="property: scale; startEvents: mouseleave; easing: easeOutCubic; dur: 300; to: 1 1 1"
+            animation__click="property: scale; startEvents: click; easing: easeOutCubic; dur: 150; from: 0.1 0.1 0.1; to: 1 1 1">
+        </a-entity>
+    </a-entity>
+
+    <a-entity id="modelo-catedral" gltf-model="#catedral" visible="false" position="0 2.2 0" scale="1.5 1.5 1.51" rotation="0 180 0"></a-entity>
+
+</a-scene>
+
+<script>
+    NAF.schemas.add({ template: '#avatar-template', components: ['position', 'rotation', 'player-info'] });
+</script>
+
+<script>
+    let miEquipoID = "";
+    let experienciaIniciada = false;
+    let dentroDeZona = false;
+    const socket = io();
+    const camWorldPos = new THREE.Vector3();
+    const altarWorldPos = new THREE.Vector3();
+
+    function encenderAltar() {
+        const campana = document.querySelector('#audio-campana');
+        if (campana && typeof campana.play === 'function') {
+            campana.currentTime = 0; campana.play().catch(e => console.log('Audio error:', e));
+        }
+        document.querySelectorAll('.luz-vela').forEach(l => l.setAttribute('light', 'intensity', 3));
+        document.querySelectorAll('.llama').forEach(l => l.setAttribute('visible', true));
+    }
+
+    function apagarAltar() {
+        document.querySelectorAll('.luz-vela').forEach(l => l.setAttribute('light', 'intensity', 0));
+        document.querySelectorAll('.llama').forEach(l => l.setAttribute('visible', false));
+    }
+
+    function fijarEquipo() {
+        miEquipoID = document.getElementById("selector-equipo").value;
+        document.getElementById("setup-panel").style.display = "none";
+        document.getElementById("overlay").style.display = "flex";
+        document.getElementById("mostrar-nombre").innerText = "Equipo: " + miEquipoID;
+    }
+
+    function tick() {
+        if (!experienciaIniciada) { requestAnimationFrame(tick); return; }
+
+        const camEl = document.querySelector('#camara');
+        const altarEl = document.querySelector('#zona-altar');
+
+        if (camEl && altarEl && camEl.object3D && altarEl.object3D) {
+            camEl.object3D.getWorldPosition(camWorldPos);
+            altarEl.object3D.getWorldPosition(altarWorldPos);
+            if (camWorldPos.distanceTo(altarWorldPos) < 5) {
+                if (!dentroDeZona) {
+                    dentroDeZona = true;
+                    encenderAltar();
+                    socket.emit('comando_experiencia', { accion: 'activar_altar', equipo: 'Todos' });
+                }
+            } else {
+                if (dentroDeZona) {
+                    dentroDeZona = false;
+                    apagarAltar();
+                    socket.emit('comando_experiencia', { accion: 'desactivar_altar', equipo: 'Todos' });
+                }
+            }
+        }
+        requestAnimationFrame(tick);
+    }
+    tick();
+
+    socket.on('comando_experiencia', function(data) {
+        if (data.equipo === miEquipoID || data.equipo === 'Todos') {
+            if (data.accion === 'start') {
+                document.getElementById("overlay").style.display = "none";
+                document.querySelector('#modelo-catedral').setAttribute('visible', 'true');
+                const miCamara = document.querySelector('#camara');
+                miCamara.setAttribute('look-controls', 'enabled: true');
+                miCamara.setAttribute('wasd-controls', 'enabled: true');
+                miCamara.setAttribute('player-info', { name: data.usuario || 'Visitante', modelRef: data.modelo || '#modelo-monja' });
+                document.querySelector('#cursor-mirada').setAttribute('visible', 'true');
+                const audioFondo = document.querySelector('#audio-Air');
+                if (audioFondo && typeof audioFondo.play === 'function') audioFondo.play().catch(e => console.log('Audio error:', e));
+                experienciaIniciada = true;
+            } else if (data.accion === 'stop') {
+                location.reload();
+            }
+        }
+        if (data.accion === 'activar_altar') encenderAltar();
+        else if (data.accion === 'desactivar_altar') apagarAltar();
+    });
+
+    socket.on('connect', function() { console.log("✅ Conectado al servidor"); });
+    socket.on('disconnect', function() { console.log("❌ Desconectado del servidor"); });
+</script>
+
+</body>
+</html>
